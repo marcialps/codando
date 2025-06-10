@@ -15,6 +15,9 @@
         .timer { text-align: center; font-size: 1.2em; margin-bottom: 10px; }
         .success { color: green; text-align: center; }
     </style>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
     <div class="container">
@@ -61,10 +64,19 @@
     </div>
 
     <script>
-    // Simulação de "sala" local (sem backend)
-    let alunos = [];
-    let enunciados = [];
-    let sorteio = [];
+    // Configuração do Firebase
+    const firebaseConfig = {
+        apiKey: "AIzaSyA-uWiH8rgvzF1hC22_bLeP_DGtes5j8MQ",
+        authDomain: "sortedev-dccca.firebaseapp.com",
+        projectId: "sortedev-dccca",
+        storageBucket: "sortedev-dccca.firebasestorage.app",
+        messagingSenderId: "436355454724",
+        appId: "1:436355454724:web:17b34396431a6908c2a251",
+        measurementId: "G-BC1PD2RS4B"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
     let meuNome = "";
     let meuEnunciado = "";
     let enunciadoSorteado = null;
@@ -73,16 +85,16 @@
     let tempoResolver = 60; // segundos para resolver
     let timerInterval = null;
 
-    // Para simular vários alunos, use o localStorage
-    function entrar() {
+    async function entrar() {
         const nome = document.getElementById('nome').value.trim();
         if (!nome) { alert('Digite seu nome!'); return; }
         meuNome = nome;
-        // Salva nome na "sala"
-        let sala = JSON.parse(localStorage.getItem('devgame_sala') || '[]');
-        if (!sala.includes(nome)) sala.push(nome);
-        localStorage.setItem('devgame_sala', JSON.stringify(sala));
-        alunos = sala;
+        // Adiciona aluno à coleção 'alunos' se não existir
+        const alunoRef = db.collection('alunos').doc(nome);
+        const doc = await alunoRef.get();
+        if (!doc.exists) {
+            await alunoRef.set({ nome });
+        }
         mostrarTela('tela-enunciado');
         iniciarTimer('timer-enunciado', tempoEnunciado, finalizarEnunciado);
     }
@@ -106,14 +118,12 @@
         }, 1000);
     }
 
-    function enviarEnunciado() {
+    async function enviarEnunciado() {
         const enunciado = document.getElementById('enunciado').value.trim();
         if (!enunciado) { alert('Digite um enunciado!'); return; }
         meuEnunciado = enunciado;
-        // Salva enunciado no localStorage
-        let lista = JSON.parse(localStorage.getItem('devgame_enunciados') || '[]');
-        lista.push({ nome: meuNome, enunciado });
-        localStorage.setItem('devgame_enunciados', JSON.stringify(lista));
+        // Salva enunciado na coleção 'enunciados'
+        await db.collection('enunciados').add({ nome: meuNome, enunciado });
         mostrarTela('tela-sorteio');
         iniciarTimer('timer-sorteio', tempoSorteio, sortearEnunciado);
     }
@@ -126,9 +136,14 @@
         }
     }
 
-    function sortearEnunciado() {
-        // Carrega todos os enunciados
-        enunciados = JSON.parse(localStorage.getItem('devgame_enunciados') || '[]');
+    async function sortearEnunciado() {
+        // Busca todos os enunciados
+        const snap = await db.collection('enunciados').get();
+        const enunciados = [];
+        snap.forEach(doc => {
+            const data = doc.data();
+            enunciados.push({ id: doc.id, ...data });
+        });
         // Remove o próprio enunciado
         const outros = enunciados.filter(e => e.nome !== meuNome);
         if (outros.length === 0) {
@@ -143,18 +158,16 @@
         iniciarTimer('timer-resolver', tempoResolver, enviarAlgoritmo);
     }
 
-    function enviarAlgoritmo() {
+    async function enviarAlgoritmo() {
         const algoritmo = document.getElementById('algoritmo').value.trim();
         if (!algoritmo) { alert('Cole ou escreva seu algoritmo!'); return; }
-        // Salva algoritmo para o autor do enunciado
-        let respostas = JSON.parse(localStorage.getItem('devgame_respostas') || '[]');
-        respostas.push({
+        // Salva algoritmo na coleção 'respostas'
+        await db.collection('respostas').add({
             para: enunciadoSorteado.nome,
             de: meuNome,
             algoritmo,
             enunciado: enunciadoSorteado.enunciado
         });
-        localStorage.setItem('devgame_respostas', JSON.stringify(respostas));
         mostrarTela('tela-final');
         clearInterval(timerInterval);
         // Limpa dados locais para nova rodada
