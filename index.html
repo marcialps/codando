@@ -243,6 +243,11 @@
         mostrarTela('tela-enunciado');
         iniciarTimer('timer-enunciado', tempoEnunciado, finalizarEnunciado);
         monitorarEnunciados();
+        // Se for autor de algum enunciado, ativa a tela de respostas ao vivo
+        const meusEnuns = await db.collection('enunciados').where('nome', '==', meuNome).get();
+        if (!meusEnuns.empty) {
+            ativarRespostasAoVivo();
+        }
     }
 
     function mostrarTela(id) {
