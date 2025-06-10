@@ -458,15 +458,8 @@
         respostaEnviadaId = docRef.id;
         clearInterval(timerInterval);
 
+        // Irá para a tela final que agora exibirá o seu enunciado e o algoritmo recebido
         await mostrarTelaFinalComResultados();
-
-        // Exibe o algoritmo que o usuário acabou de enviar (na div correta)
-        document.getElementById('meu-algoritmo-enviado-final').innerHTML = `
-            <b>Você resolveu o enunciado:</b><br>
-            <span style='color:#00c3ff'>${enunciadoSorteado.enunciado}</span><br><br>
-            <b>Seu algoritmo enviado:</b><br>
-            <textarea style='width:100%;background:#181a1b;color:#fff;border:1px solid #444;border-radius:5px;' rows='6' readonly>${algoritmo}</textarea>
-        `;
 
         ativarFeedbackAoVivo(); // Ativa listener para feedback (se for receber feedback)
         ativarRespostasAoVivo(); // Este é para a tela de admin/autor do enunciado
