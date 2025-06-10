@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevGame - Algoritmos</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 0; }
+        .container { max-width: 400px; margin: 40px auto; background: #fff; padding: 32px 24px; border-radius: 10px; box-shadow: 0 2px 8px #0001; }
+        h2 { text-align: center; }
+        .hidden { display: none; }
+        input, textarea, button { width: 100%; margin: 12px 0; padding: 10px; border-radius: 5px; border: 1px solid #ccc; }
+        button { background: #007bff; color: #fff; border: none; cursor: pointer; font-size: 1rem; }
+        button:disabled { background: #aaa; }
+        .timer { text-align: center; font-size: 1.2em; margin-bottom: 10px; }
+        .success { color: green; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Tela 1: Nome -->
+        <div id="tela-nome">
+            <h2>Bem-vindo!</h2>
+            <label for="nome">Digite seu nome:</label>
+            <input type="text" id="nome" maxlength="30" autocomplete="off">
+            <button onclick="entrar()">Entrar</button>
+        </div>
+
+        <!-- Tela 2: Enunciado -->
+        <div id="tela-enunciado" class="hidden">
+            <h2>Crie um Enunciado</h2>
+            <div class="timer" id="timer-enunciado"></div>
+            <label for="enunciado">Descreva um problema para ser resolvido com um algoritmo:</label>
+            <textarea id="enunciado" rows="4" maxlength="300"></textarea>
+            <button onclick="enviarEnunciado()">Enviar Enunciado</button>
+        </div>
+
+        <!-- Tela 3: Sorteio -->
+        <div id="tela-sorteio" class="hidden">
+            <h2>Sorteando enunciados...</h2>
+            <div class="timer" id="timer-sorteio"></div>
+            <p>Aguarde enquanto os enunciados são sorteados entre os participantes.</p>
+        </div>
+
+        <!-- Tela 4: Receber Enunciado -->
+        <div id="tela-receber" class="hidden">
+            <h2>Resolva o Enunciado</h2>
+            <div class="timer" id="timer-resolver"></div>
+            <p><strong>Enunciado sorteado:</strong></p>
+            <div id="enunciado-recebido" style="background:#f0f0f0;padding:10px;border-radius:5px;margin-bottom:10px;"></div>
+            <label for="algoritmo">Cole ou escreva seu algoritmo:</label>
+            <textarea id="algoritmo" rows="6" maxlength="1000"></textarea>
+            <button onclick="enviarAlgoritmo()">Enviar Algoritmo</button>
+        </div>
+
+        <!-- Tela 5: Confirmação -->
+        <div id="tela-final" class="hidden">
+            <h2>Obrigado!</h2>
+            <p class="success">Seu algoritmo foi enviado para o autor do enunciado.</p>
+        </div>
+    </div>
+
+    <script>
+    // Simulação de "sala" local (sem backend)
+    let alunos = [];
+    let enunciados = [];
+    let sorteio = [];
+    let meuNome = "";
+    let meuEnunciado = "";
+    let enunciadoSorteado = null;
+    let tempoEnunciado = 30; // segundos para criar enunciado
+    let tempoSorteio = 5; // segundos para "sortear"
+    let tempoResolver = 60; // segundos para resolver
+    let timerInterval = null;
+
+    // Para simular vários alunos, use o localStorage
+    function entrar() {
+        const nome = document.getElementById('nome').value.trim();
+        if (!nome) { alert('Digite seu nome!'); return; }
+        meuNome = nome;
+        // Salva nome na "sala"
+        let sala = JSON.parse(localStorage.getItem('devgame_sala') || '[]');
+        if (!sala.includes(nome)) sala.push(nome);
+        localStorage.setItem('devgame_sala', JSON.stringify(sala));
+        alunos = sala;
+        mostrarTela('tela-enunciado');
+        iniciarTimer('timer-enunciado', tempoEnunciado, finalizarEnunciado);
+    }
+
+    function mostrarTela(id) {
+        document.querySelectorAll('.container > div').forEach(div => div.classList.add('hidden'));
+        document.getElementById(id).classList.remove('hidden');
+    }
+
+    function iniciarTimer(elementId, segundos, aoFinalizar) {
+        let tempo = segundos;
+        document.getElementById(elementId).textContent = `Tempo restante: ${tempo}s`;
+        clearInterval(timerInterval);
+        timerInterval = setInterval(() => {
+            tempo--;
+            document.getElementById(elementId).textContent = `Tempo restante: ${tempo}s`;
+            if (tempo <= 0) {
+                clearInterval(timerInterval);
+                aoFinalizar();
+            }
+        }, 1000);
+    }
+
+    function enviarEnunciado() {
+        const enunciado = document.getElementById('enunciado').value.trim();
+        if (!enunciado) { alert('Digite um enunciado!'); return; }
+        meuEnunciado = enunciado;
+        // Salva enunciado no localStorage
+        let lista = JSON.parse(localStorage.getItem('devgame_enunciados') || '[]');
+        lista.push({ nome: meuNome, enunciado });
+        localStorage.setItem('devgame_enunciados', JSON.stringify(lista));
+        mostrarTela('tela-sorteio');
+        iniciarTimer('timer-sorteio', tempoSorteio, sortearEnunciado);
+    }
+
+    function finalizarEnunciado() {
+        if (!meuEnunciado) enviarEnunciado();
+        else {
+            mostrarTela('tela-sorteio');
+            iniciarTimer('timer-sorteio', tempoSorteio, sortearEnunciado);
+        }
+    }
+
+    function sortearEnunciado() {
+        // Carrega todos os enunciados
+        enunciados = JSON.parse(localStorage.getItem('devgame_enunciados') || '[]');
+        // Remove o próprio enunciado
+        const outros = enunciados.filter(e => e.nome !== meuNome);
+        if (outros.length === 0) {
+            alert('Aguarde outros alunos enviarem enunciados.');
+            location.reload();
+            return;
+        }
+        // Sorteia um enunciado de outro aluno
+        enunciadoSorteado = outros[Math.floor(Math.random() * outros.length)];
+        mostrarTela('tela-receber');
+        document.getElementById('enunciado-recebido').textContent = enunciadoSorteado.enunciado;
+        iniciarTimer('timer-resolver', tempoResolver, enviarAlgoritmo);
+    }
+
+    function enviarAlgoritmo() {
+        const algoritmo = document.getElementById('algoritmo').value.trim();
+        if (!algoritmo) { alert('Cole ou escreva seu algoritmo!'); return; }
+        // Salva algoritmo para o autor do enunciado
+        let respostas = JSON.parse(localStorage.getItem('devgame_respostas') || '[]');
+        respostas.push({
+            para: enunciadoSorteado.nome,
+            de: meuNome,
+            algoritmo,
+            enunciado: enunciadoSorteado.enunciado
+        });
+        localStorage.setItem('devgame_respostas', JSON.stringify(respostas));
+        mostrarTela('tela-final');
+        clearInterval(timerInterval);
+        // Limpa dados locais para nova rodada
+        setTimeout(() => { location.reload(); }, 8000);
+    }
+    </script>
+</body>
+</html>
