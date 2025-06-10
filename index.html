@@ -124,11 +124,7 @@
 
         <!-- Tela 5: Confirmação -->
         <div id="tela-final" class="hidden">
-            <h2>Obrigado!</h2>
-            <p class="success">Seu algoritmo foi enviado para o autor do enunciado.</p>
-
-            <!-- Detalhes do algoritmo que o usuário acabou de enviar -->
-            <div id="meu-algoritmo-enviado-final" style="margin-top:20px;"></div>
+            <h2>Resultados da Rodada</h2>
 
             <!-- Detalhes do enunciado que o usuário criou e o algoritmo recebido para ele -->
             <div id="algoritmo-recebido-para-meu-enunciado-final" style="margin-top:20px;"></div>
@@ -425,15 +421,8 @@
                     snap.forEach(doc => {
                         const data = doc.data();
                         console.log('Processando resposta:', data.enunciado, 'Enviado por:', data.de, 'Rodada finalizada:', data.rodadaFinalizada);
-                        // Verifica se o algoritmo recebido corresponde ao enunciado do usuário
-                        // (Pode haver múltiplos enunciados do mesmo usuário, então filtramos pelo texto do enunciado)
-                        if (data.enunciado === meuEnunciadoTexto) {
-                            console.log('Enunciado da resposta corresponde ao meu enunciado. Exibindo algoritmo.');
-                            html += `<b>Algoritmo recebido de <span style='color:#00e676'>${data.de || '-'}</span>:</b><br>
-                                <textarea style='width:100%;background:#181a1b;color:#fff;border:1px solid #444;border-radius:5px;' rows='6' readonly>${data.algoritmo || ''}</textarea><br><br>`;
-                        } else {
-                            console.warn('Enunciado da resposta NÃO corresponde ao meu. Esperado:', meuEnunciadoTexto, 'Recebido:', data.enunciado);
-                        }
+                        html += `<b>Algoritmo recebido de <span style='color:#00e676'>${data.de || '-'}</span>:</b><br>
+                            <textarea style='width:100%;background:#181a1b;color:#fff;border:1px solid #444;border-radius:5px;' rows='6' readonly>${data.algoritmo || ''}</textarea><br><br>`;
                     });
                 } else {
                     console.log('Nenhum snapshot de resposta não vazio. Exibindo mensagem padrão.');
@@ -470,21 +459,11 @@
         });
         respostaEnviadaId = docRef.id;
         clearInterval(timerInterval);
-        // Ao enviar, vai direto para a tela final com o algoritmo enviado (o que ele resolveu)
-        // A seção do algoritmo recebido para o meu enunciado será atualizada pelo listener em mostrarTelaFinalComResultados()
+
+        // Irá para a tela final que agora exibirá o seu enunciado e o algoritmo recebido
         await mostrarTelaFinalComResultados();
 
-        // Exibe o algoritmo que o usuário acabou de enviar (na div correta)
-        document.getElementById('meu-algoritmo-enviado-final').innerHTML = `
-            <b>Você resolveu o enunciado:</b><br>
-            <span style='color:#00c3ff'>${enunciadoSorteado.enunciado}</span><br><br>
-            <b>Seu algoritmo enviado:</b><br>
-            <textarea style='width:100%;background:#181a1b;color:#fff;border:1px solid #444;border-radius:5px;' rows='6' readonly>${algoritmo}</textarea>
-        `;
-
         ativarFeedbackAoVivo(); // Ativa listener para feedback (se for receber feedback)
-        // Não precisamos chamar ativarRespostasAoVivo() aqui, pois já está no entrar() ou não é o foco desta tela
-        // ativarRespostasAoVivo(); // Removido para evitar confusão de telas
     }
 
     async function salvarComentarioEnviado() {
