@@ -244,11 +244,8 @@
         mostrarTela('tela-enunciado');
         iniciarTimer('timer-enunciado', tempoEnunciado, finalizarEnunciado);
         monitorarEnunciados();
-        // Se for autor de algum enunciado, ativa a tela de respostas ao vivo
-        const meusEnuns = await db.collection('enunciados').where('nome', '==', meuNome).get();
-        if (!meusEnuns.empty) {
-            ativarRespostasAoVivo();
-        }
+        // Sempre ativa o listener de respostas ao vivo para o autor do enunciado
+        ativarRespostasAoVivo();
     }
 
     function mostrarTela(id) {
@@ -473,11 +470,17 @@
     function ativarRespostasAoVivo() {
         if (unsubscribeRespostas) unsubscribeRespostas();
         if (!meuNome) return;
+        console.log('Ativando listener de respostas para:', meuNome);
         unsubscribeRespostas = db.collection('respostas')
             .where('para', '==', meuNome)
             .where('rodadaFinalizada', '==', true)
             .onSnapshot(snap => {
-                if (snap.empty) return;
+                console.log('Snapshot respostas para', meuNome, 'Qtd:', snap.size);
+                if (snap.empty) {
+                    // Se não houver respostas, volta para tela de enunciado ou mantém tela atual
+                    //mostrarTela('tela-enunciado');
+                    return;
+                }
                 mostrarTela('tela-respostas');
                 const lista = document.getElementById('respostas-lista');
                 lista.innerHTML = '';
