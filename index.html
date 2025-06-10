@@ -244,17 +244,30 @@
             atualizarMinutos();
             return;
         }
+
         // Adiciona aluno à coleção 'alunos' se não existir
         const alunoRef = db.collection('alunos').doc(nome);
         const doc = await alunoRef.get();
         if (!doc.exists) {
             await alunoRef.set({ nome });
         }
-        mostrarTela('tela-enunciado');
-        iniciarTimer('timer-enunciado', tempoEnunciado, finalizarEnunciado);
-        monitorarEnunciados();
-        // Sempre ativa o listener de respostas ao vivo para o autor do enunciado
-        ativarRespostasAoVivo();
+
+        // **NOVA LÓGICA:** Verifica se o usuário é autor de algum enunciado e já recebeu feedback finalizado
+        const respostasParaMeuEnunciado = await db.collection('respostas')
+            .where('para', '==', meuNome)
+            .where('rodadaFinalizada', '==', true)
+            .get();
+
+        if (!respostasParaMeuEnunciado.empty) {
+            console.log('Autor de enunciado com respostas finalizadas. Exibindo tela final.');
+            await mostrarTelaFinalComResultados(); // Vai para a tela final com resultados
+        } else {
+            console.log('Participante comum ou autor sem respostas finalizadas. Exibindo tela de enunciado.');
+            mostrarTela('tela-enunciado');
+            iniciarTimer('timer-enunciado', tempoEnunciado, finalizarEnunciado);
+            monitorarEnunciados();
+        }
+        ativarRespostasAoVivo(); // Este é para a tela de admin/autor do enunciado com feedback interativo
     }
 
     function mostrarTela(id) {
@@ -457,7 +470,9 @@
         });
         respostaEnviadaId = docRef.id;
         clearInterval(timerInterval);
-        mostrarTela('tela-final');
+        // Ao enviar, vai direto para a tela final com o algoritmo enviado (o que ele resolveu)
+        // A seção do algoritmo recebido para o meu enunciado será atualizada pelo listener em mostrarTelaFinalComResultados()
+        await mostrarTelaFinalComResultados();
 
         // Exibe o algoritmo que o usuário acabou de enviar (na div correta)
         document.getElementById('meu-algoritmo-enviado-final').innerHTML = `
@@ -468,9 +483,8 @@
         `;
 
         ativarFeedbackAoVivo(); // Ativa listener para feedback (se for receber feedback)
-        // Não precisamos chamar mostrarTelaFinalComResultados() novamente aqui
-        // o listener já foi ativado e será atualizado
-        // ativarRespostasAoVivo(); // Este é para a tela de admin/autor do enunciado
+        // Não precisamos chamar ativarRespostasAoVivo() aqui, pois já está no entrar() ou não é o foco desta tela
+        // ativarRespostasAoVivo(); // Removido para evitar confusão de telas
     }
 
     async function salvarComentarioEnviado() {
