@@ -405,63 +405,63 @@
         if (tempos.tempoResolver) tempoResolver = tempos.tempoResolver;
     })();
 
-    // Se o usuário for autor de algum enunciado, pode ver as respostas recebidas
-    async function verificarRespostasRecebidas() {
+    // Listener em tempo real para respostas recebidas
+    let unsubscribeRespostas = null;
+    function ativarRespostasAoVivo() {
+        if (unsubscribeRespostas) unsubscribeRespostas();
         if (!meuNome) return;
-        // Busca respostas para o usuário
-        const snap = await db.collection('respostas').where('para', '==', meuNome).get();
-        if (snap.empty) return;
-        mostrarTela('tela-respostas');
-        const lista = document.getElementById('respostas-lista');
-        lista.innerHTML = '';
-        snap.forEach(doc => {
-            const data = doc.data();
-            const div = document.createElement('div');
-            div.style = 'background:#23272b;border:1px solid #333;border-radius:8px;padding:12px;margin-bottom:18px;';
-            div.innerHTML = `
-                <b>Enunciado:</b><br><span style='color:#00c3ff'>${data.enunciado}</span><br><br>
-                <b>Algoritmo enviado por <span style='color:#00e676'>${data.de}</span>:</b><br>
-                <textarea style='width:100%;background:#181a1b;color:#fff;border:1px solid #444;border-radius:5px;' rows='6' readonly>${data.algoritmo}</textarea><br>
-                <button onclick='copiarAlgoritmo(this)'>Copiar Algoritmo</button>
-                <button onclick='testarAlgoritmo(this)'>Testar (manual)</button><br><br>
-                <label>Comentário:</label><br>
-                <input type='text' style='width:80%;background:#181a1b;color:#fff;border:1px solid #444;border-radius:5px;' value='${data.comentario || ''}' id='comentario-${doc.id}'>
-                <button onclick='salvarComentario("${doc.id}")'>Salvar</button><br><br>
-                <label>Enviar emotion:</label>
-                <span style='font-size:1.5em;cursor:pointer;' onclick='enviarEmotion("${doc.id}","👍")'>👍</span>
-                <span style='font-size:1.5em;cursor:pointer;' onclick='enviarEmotion("${doc.id}","👏")'>👏</span>
-                <span style='font-size:1.5em;cursor:pointer;' onclick='enviarEmotion("${doc.id}","🤔")'>🤔</span>
-                <span style='font-size:1.5em;cursor:pointer;' onclick='enviarEmotion("${doc.id}","💡")'>💡</span>
-                <span style='font-size:1.5em;cursor:pointer;' onclick='enviarEmotion("${doc.id}","🔥")'>🔥</span>
-                <span id='emotion-${doc.id}' style='margin-left:10px;'>${data.emotion || ''}</span>
-            `;
-            lista.appendChild(div);
-        });
+        unsubscribeRespostas = db.collection('respostas')
+            .where('para', '==', meuNome)
+            .onSnapshot(snap => {
+                if (snap.empty) return;
+                mostrarTela('tela-respostas');
+                const lista = document.getElementById('respostas-lista');
+                lista.innerHTML = '';
+                snap.forEach(doc => {
+                    const data = doc.data();
+                    const div = document.createElement('div');
+                    div.style = 'background:#23272b;border:1px solid #333;border-radius:8px;padding:12px;margin-bottom:18px;';
+                    div.innerHTML = `
+                        <b>Enunciado:</b><br><span style='color:#00c3ff'>${data.enunciado}</span><br><br>
+                        <b>Algoritmo enviado por <span style='color:#00e676'>${data.de}</span>:</b><br>
+                        <textarea style='width:100%;background:#181a1b;color:#fff;border:1px solid #444;border-radius:5px;' rows='6' readonly>${data.algoritmo}</textarea><br><br>
+                        <label>Comentário:</label><br>
+                        <input type='text' style='width:80%;background:#181a1b;color:#fff;border:1px solid #444;border-radius:5px;' value='${data.comentario || ''}' id='comentario-${doc.id}'>
+                        <button onclick='salvarComentario("${doc.id}")'>Salvar</button><br><br>
+                        <label>Enviar emotion:</label>
+                        <span style='font-size:1.5em;cursor:pointer;' onclick='enviarEmotion("${doc.id}","👍")'>👍</span>
+                        <span style='font-size:1.5em;cursor:pointer;' onclick='enviarEmotion("${doc.id}","👏")'>👏</span>
+                        <span style='font-size:1.5em;cursor:pointer;' onclick='enviarEmotion("${doc.id}","🤔")'>🤔</span>
+                        <span style='font-size:1.5em;cursor:pointer;' onclick='enviarEmotion("${doc.id}","💡")'>💡</span>
+                        <span style='font-size:1.5em;cursor:pointer;' onclick='enviarEmotion("${doc.id}","🔥")'>🔥</span>
+                        <span id='emotion-${doc.id}' style='margin-left:10px;'>${data.emotion || ''}</span>
+                    `;
+                    lista.appendChild(div);
+                });
+            });
     }
 
-    function copiarAlgoritmo(btn) {
-        const textarea = btn.parentElement.querySelector('textarea');
-        textarea.select();
-        document.execCommand('copy');
-        btn.textContent = 'Copiado!';
-        setTimeout(() => { btn.textContent = 'Copiar Algoritmo'; }, 1200);
-    }
-    function testarAlgoritmo(btn) {
-        alert('Teste manual: cole o algoritmo em seu ambiente preferido.');
-    }
     async function salvarComentario(id) {
         const val = document.getElementById('comentario-' + id).value;
         await db.collection('respostas').doc(id).update({ comentario: val });
-        alert('Comentário salvo!');
     }
     async function enviarEmotion(id, emoji) {
         await db.collection('respostas').doc(id).update({ emotion: emoji });
         document.getElementById('emotion-' + id).textContent = emoji;
     }
 
-    // Ao entrar, verifica se há respostas recebidas
+    // Ativa respostas ao vivo ao entrar no sistema
+    function checarAutorRespostasAoVivo() {
+        if (!meuNome) return;
+        // Verifica se o usuário é autor de algum enunciado
+        db.collection('enunciados').where('nome', '==', meuNome).get().then(snap => {
+            if (!snap.empty) ativarRespostasAoVivo();
+        });
+    }
+
+    // Chama ao entrar
     document.addEventListener('DOMContentLoaded', () => {
-        setTimeout(verificarRespostasRecebidas, 2000);
+        setTimeout(checarAutorRespostasAoVivo, 2000);
     });
     </script>
 </body>
