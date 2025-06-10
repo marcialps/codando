@@ -5,15 +5,81 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DevGame - Algoritmos</title>
     <style>
-        body { font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 0; }
-        .container { max-width: 400px; margin: 40px auto; background: #fff; padding: 32px 24px; border-radius: 10px; box-shadow: 0 2px 8px #0001; }
-        h2 { text-align: center; }
+        body {
+            font-family: Arial, sans-serif;
+            background: #181a1b;
+            color: #f1f1f1;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 400px;
+            margin: 40px auto;
+            background: #23272b;
+            padding: 32px 24px;
+            border-radius: 10px;
+            box-shadow: 0 2px 16px #000a;
+        }
+        h2 {
+            text-align: center;
+            color: #fff;
+        }
         .hidden { display: none; }
-        input, textarea, button { width: 100%; margin: 12px 0; padding: 10px; border-radius: 5px; border: 1px solid #ccc; }
-        button { background: #007bff; color: #fff; border: none; cursor: pointer; font-size: 1rem; }
-        button:disabled { background: #aaa; }
-        .timer { text-align: center; font-size: 1.2em; margin-bottom: 10px; }
-        .success { color: green; text-align: center; }
+        input, textarea {
+            width: 100%;
+            margin: 12px 0;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #444;
+            background: #181a1b;
+            color: #f1f1f1;
+            font-size: 1rem;
+            transition: border 0.2s;
+        }
+        input:focus, textarea:focus {
+            border: 1.5px solid #007bff;
+            outline: none;
+        }
+        button {
+            width: 100%;
+            margin: 12px 0;
+            padding: 10px;
+            border-radius: 5px;
+            border: none;
+            background: linear-gradient(90deg, #007bff 60%, #0056b3 100%);
+            color: #fff;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: bold;
+            box-shadow: 0 2px 8px #0004;
+            transition: background 0.2s;
+        }
+        button:disabled {
+            background: #333;
+            color: #888;
+            cursor: not-allowed;
+        }
+        .timer {
+            text-align: center;
+            font-size: 1.2em;
+            margin-bottom: 10px;
+            color: #00c3ff;
+        }
+        .success {
+            color: #00e676;
+            text-align: center;
+        }
+        label {
+            color: #b0b0b0;
+        }
+        #enunciado-recebido {
+            background: #22262a;
+            color: #f1f1f1;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            border: 1px solid #333;
+        }
     </style>
     <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -50,7 +116,7 @@
             <h2>Resolva o Enunciado</h2>
             <div class="timer" id="timer-resolver"></div>
             <p><strong>Enunciado sorteado:</strong></p>
-            <div id="enunciado-recebido" style="background:#f0f0f0;padding:10px;border-radius:5px;margin-bottom:10px;"></div>
+            <div id="enunciado-recebido"></div>
             <label for="algoritmo">Cole ou escreva seu algoritmo:</label>
             <textarea id="algoritmo" rows="6" maxlength="1000"></textarea>
             <button onclick="enviarAlgoritmo()">Enviar Algoritmo</button>
@@ -60,6 +126,24 @@
         <div id="tela-final" class="hidden">
             <h2>Obrigado!</h2>
             <p class="success">Seu algoritmo foi enviado para o autor do enunciado.</p>
+        </div>
+
+        <!-- Tela 6: Administração (apenas para 'cko') -->
+        <div id="tela-admin" class="hidden">
+            <h2>Administração</h2>
+            <button onclick="resetarTudo()">Resetar Tudo (alunos, enunciados, respostas)</button>
+            <button onclick="apagarEnunciados()">Apagar Apenas Enunciados</button>
+            <h3 style="margin-top:24px; color:#00c3ff;">Configuração de Tempos (segundos)</h3>
+            <form id="form-tempos" onsubmit="salvarTempos(event)">
+                <label for="tempoEnunciadoInput">Tempo para criar enunciado:</label>
+                <input type="number" id="tempoEnunciadoInput" min="5" max="600" value="30">
+                <label for="tempoSorteioInput">Tempo de sorteio:</label>
+                <input type="number" id="tempoSorteioInput" min="2" max="60" value="5">
+                <label for="tempoResolverInput">Tempo para resolver:</label>
+                <input type="number" id="tempoResolverInput" min="10" max="1800" value="60">
+                <button type="submit">Salvar Tempos</button>
+            </form>
+            <button onclick="voltarParaLogin()" style="margin-top:20px;background:#444;">Sair da Administração</button>
         </div>
     </div>
 
@@ -89,6 +173,11 @@
         const nome = document.getElementById('nome').value.trim();
         if (!nome) { alert('Digite seu nome!'); return; }
         meuNome = nome;
+        if (nome === 'cko') {
+            mostrarTela('tela-admin');
+            carregarTempos();
+            return;
+        }
         // Adiciona aluno à coleção 'alunos' se não existir
         const alunoRef = db.collection('alunos').doc(nome);
         const doc = await alunoRef.get();
@@ -173,6 +262,52 @@
         // Limpa dados locais para nova rodada
         setTimeout(() => { location.reload(); }, 8000);
     }
+
+    // Funções de administração
+    async function resetarTudo() {
+        if (!confirm('Tem certeza que deseja apagar tudo?')) return;
+        // Apaga todas as coleções
+        await apagarColecao('alunos');
+        await apagarColecao('enunciados');
+        await apagarColecao('respostas');
+        alert('Tudo apagado!');
+    }
+    async function apagarEnunciados() {
+        if (!confirm('Tem certeza que deseja apagar todos os enunciados?')) return;
+        await apagarColecao('enunciados');
+        alert('Enunciados apagados!');
+    }
+    async function apagarColecao(nomeColecao) {
+        const snap = await db.collection(nomeColecao).get();
+        const batch = db.batch();
+        snap.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+    }
+    function voltarParaLogin() {
+        mostrarTela('tela-nome');
+    }
+    // Configuração de tempos
+    function carregarTempos() {
+        const tempos = JSON.parse(localStorage.getItem('devgame_tempos') || '{}');
+        document.getElementById('tempoEnunciadoInput').value = tempos.tempoEnunciado || 30;
+        document.getElementById('tempoSorteioInput').value = tempos.tempoSorteio || 5;
+        document.getElementById('tempoResolverInput').value = tempos.tempoResolver || 60;
+    }
+    function salvarTempos(event) {
+        event.preventDefault();
+        const tempoEnunciado = parseInt(document.getElementById('tempoEnunciadoInput').value);
+        const tempoSorteio = parseInt(document.getElementById('tempoSorteioInput').value);
+        const tempoResolver = parseInt(document.getElementById('tempoResolverInput').value);
+        localStorage.setItem('devgame_tempos', JSON.stringify({ tempoEnunciado, tempoSorteio, tempoResolver }));
+        alert('Tempos salvos! Eles serão usados nos próximos acessos.');
+    }
+    // Ao carregar a página, ler tempos do localStorage
+    (function(){
+        const tempos = JSON.parse(localStorage.getItem('devgame_tempos') || '{}');
+        if (tempos.tempoEnunciado) tempoEnunciado = tempos.tempoEnunciado;
+        if (tempos.tempoSorteio) tempoSorteio = tempos.tempoSorteio;
+        if (tempos.tempoResolver) tempoResolver = tempos.tempoResolver;
+    })();
     </script>
 </body>
 </html>
