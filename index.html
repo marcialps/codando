@@ -133,14 +133,23 @@
             <h2>Administração</h2>
             <button onclick="resetarTudo()">Resetar Tudo (alunos, enunciados, respostas)</button>
             <button onclick="apagarEnunciados()">Apagar Apenas Enunciados</button>
-            <h3 style="margin-top:24px; color:#00c3ff;">Configuração de Tempos (segundos)</h3>
+            <h3 style="margin-top:24px; color:#00c3ff;">Configuração de Tempos</h3>
             <form id="form-tempos" onsubmit="salvarTempos(event)">
                 <label for="tempoEnunciadoInput">Tempo para criar enunciado:</label>
-                <input type="number" id="tempoEnunciadoInput" min="5" max="600" value="30">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <input type="number" id="tempoEnunciadoInput" min="5" max="600" value="30" style="width:80px;">
+                    <span id="tempoEnunciadoMin">(0,5 min)</span>
+                </div>
                 <label for="tempoSorteioInput">Tempo de sorteio:</label>
-                <input type="number" id="tempoSorteioInput" min="2" max="60" value="5">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <input type="number" id="tempoSorteioInput" min="2" max="60" value="5" style="width:80px;">
+                    <span id="tempoSorteioMin">(0,08 min)</span>
+                </div>
                 <label for="tempoResolverInput">Tempo para resolver:</label>
-                <input type="number" id="tempoResolverInput" min="10" max="1800" value="60">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <input type="number" id="tempoResolverInput" min="10" max="1800" value="60" style="width:80px;">
+                    <span id="tempoResolverMin">(1 min)</span>
+                </div>
                 <button type="submit">Salvar Tempos</button>
             </form>
             <button onclick="voltarParaLogin()" style="margin-top:20px;background:#444;">Sair da Administração</button>
@@ -169,6 +178,20 @@
     let tempoResolver = 60; // segundos para resolver
     let timerInterval = null;
 
+    // Atualiza exibição dos minutos ao alterar os inputs
+    function atualizarMinutos() {
+        document.getElementById('tempoEnunciadoMin').textContent = `(${(document.getElementById('tempoEnunciadoInput').value/60).toFixed(2)} min)`;
+        document.getElementById('tempoSorteioMin').textContent = `(${(document.getElementById('tempoSorteioInput').value/60).toFixed(2)} min)`;
+        document.getElementById('tempoResolverMin').textContent = `(${(document.getElementById('tempoResolverInput').value/60).toFixed(2)} min)`;
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+        ['tempoEnunciadoInput','tempoSorteioInput','tempoResolverInput'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('input', atualizarMinutos);
+        });
+        atualizarMinutos();
+    });
+
     async function entrar() {
         const nome = document.getElementById('nome').value.trim();
         if (!nome) { alert('Digite seu nome!'); return; }
@@ -176,6 +199,7 @@
         if (nome === 'cko') {
             mostrarTela('tela-admin');
             carregarTempos();
+            atualizarMinutos();
             return;
         }
         // Adiciona aluno à coleção 'alunos' se não existir
@@ -186,6 +210,7 @@
         }
         mostrarTela('tela-enunciado');
         iniciarTimer('timer-enunciado', tempoEnunciado, finalizarEnunciado);
+        monitorarEnunciados();
     }
 
     function mostrarTela(id) {
@@ -207,21 +232,50 @@
         }, 1000);
     }
 
+    // --- NOVA LÓGICA DE SORTEIO ---
+    let enviouEnunciado = false;
+    let monitorando = false;
+    let monitorInterval = null;
+    let alunosDaRodada = [];
+
+    async function monitorarEnunciados() {
+        if (monitorando) return;
+        monitorando = true;
+        // Pega lista de alunos da rodada
+        const snap = await db.collection('alunos').get();
+        alunosDaRodada = [];
+        snap.forEach(doc => alunosDaRodada.push(doc.id));
+        monitorInterval = setInterval(async () => {
+            const enuns = await db.collection('enunciados').get();
+            const nomesComEnunciado = new Set();
+            enuns.forEach(doc => nomesComEnunciado.add(doc.data().nome));
+            // Se todos já enviaram, ou o tempo acabou, libera sorteio
+            if (alunosDaRodada.every(nome => nomesComEnunciado.has(nome))) {
+                clearInterval(monitorInterval);
+                if (!enviouEnunciado) finalizarEnunciado();
+            }
+        }, 1500);
+    }
+
     async function enviarEnunciado() {
         const enunciado = document.getElementById('enunciado').value.trim();
         if (!enunciado) { alert('Digite um enunciado!'); return; }
         meuEnunciado = enunciado;
+        enviouEnunciado = true;
         // Salva enunciado na coleção 'enunciados'
         await db.collection('enunciados').add({ nome: meuNome, enunciado });
         mostrarTela('tela-sorteio');
-        iniciarTimer('timer-sorteio', tempoSorteio, sortearEnunciado);
+        // O sorteio só será liberado pelo monitoramento
     }
 
     function finalizarEnunciado() {
         if (!meuEnunciado) enviarEnunciado();
         else {
             mostrarTela('tela-sorteio');
-            iniciarTimer('timer-sorteio', tempoSorteio, sortearEnunciado);
+            // O sorteio só será liberado pelo monitoramento
+            setTimeout(() => {
+                sortearEnunciado();
+            }, 1000);
         }
     }
 
