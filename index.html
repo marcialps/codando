@@ -393,6 +393,22 @@
         mostrarTela('tela-final');
         setTimeout(() => { voltarParaLogin(); }, 2000);
         ativarFeedbackAoVivo();
+        // Se o autor do enunciado estiver logado, ativa/reativa o listener de respostas ao vivo
+        if (meuNome !== enunciadoSorteado.nome) {
+            // Busca se o autor está logado (simples: ativa o listener para o nome do autor)
+            // Isso garante que, se o autor estiver na página, verá a resposta imediatamente
+            window.setTimeout(() => {
+                db.collection('enunciados').where('nome', '==', enunciadoSorteado.nome).get().then(snap => {
+                    if (!snap.empty) {
+                        // Troca o nome temporariamente para ativar o listener para o autor
+                        const nomeOriginal = meuNome;
+                        meuNome = enunciadoSorteado.nome;
+                        ativarRespostasAoVivo();
+                        meuNome = nomeOriginal;
+                    }
+                });
+            }, 1000);
+        }
     }
 
     function exibirAlgoritmoEnviado(algoritmo, enunciado, autor) {
