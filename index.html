@@ -382,25 +382,25 @@
         if (!enunSnap.empty) {
             meuEnunciado = enunSnap.docs[0].data().enunciado;
         }
-        // Busca a resposta recebida para esse enunciado
+        // Busca todas as respostas recebidas para esse enunciado
         const respSnap = await db.collection('respostas')
             .where('para', '==', meuNome)
+            .where('enunciado', '==', meuEnunciado)
             .where('rodadaFinalizada', '==', true)
             .get();
-        let algoritmoRecebido = '';
-        let deQuem = '';
+        let html = `<b>Seu enunciado enviado:</b><br>
+            <span style='color:#00c3ff'>${meuEnunciado || 'Nenhum enunciado encontrado.'}</span><br><br>`;
         if (!respSnap.empty) {
-            const data = respSnap.docs[0].data();
-            algoritmoRecebido = data.algoritmo;
-            deQuem = data.de;
+            respSnap.forEach(doc => {
+                const data = doc.data();
+                html += `<b>Algoritmo recebido de <span style='color:#00e676'>${data.de || '-'}</span>:</b><br>
+                    <textarea style='width:100%;background:#181a1b;color:#fff;border:1px solid #444;border-radius:5px;' rows='6' readonly>${data.algoritmo || ''}</textarea><br><br>`;
+            });
+        } else {
+            html += `<b>Algoritmo recebido de -:</b><br>
+                <textarea style='width:100%;background:#181a1b;color:#fff;border:1px solid #444;border-radius:5px;' rows='6' readonly>Nenhum algoritmo recebido ainda.</textarea>`;
         }
-        // Exibe ambos na tela-final
-        document.getElementById('algoritmo-enviado-final').innerHTML = `
-            <b>Seu enunciado enviado:</b><br>
-            <span style='color:#00c3ff'>${meuEnunciado || 'Nenhum enunciado encontrado.'}</span><br><br>
-            <b>Algoritmo recebido de <span style='color:#00e676'>${deQuem || '-'}</span>:</b><br>
-            <textarea style='width:100%;background:#181a1b;color:#fff;border:1px solid #444;border-radius:5px;' rows='6' readonly>${algoritmoRecebido || 'Nenhum algoritmo recebido ainda.'}</textarea>
-        `;
+        document.getElementById('algoritmo-enviado-final').innerHTML = html;
     }
 
     async function mostrarTelaFinalComResultados() {
