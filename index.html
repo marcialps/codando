@@ -161,6 +161,24 @@
             <div id="respostas-lista"></div>
             <button onclick="voltarParaLogin()" style="margin-top:20px;background:#444;">Sair</button>
         </div>
+
+        <!-- Tela 8: Visualizar Algoritmo Enviado -->
+        <div id="tela-algoritmo-enviado" class="hidden">
+            <h2>Algoritmo Enviado</h2>
+            <div id="algoritmo-enviado-info"></div>
+            <label>Comentário para o autor do enunciado:</label><br>
+            <input type="text" id="comentario-enviado" style="width:80%;background:#181a1b;color:#fff;border:1px solid #444;border-radius:5px;">
+            <button onclick="salvarComentarioEnviado()">Salvar Comentário</button><br><br>
+            <label>Enviar emotion para o autor:</label>
+            <span style='font-size:1.5em;cursor:pointer;' onclick='enviarEmotionEnviado("👍")'>👍</span>
+            <span style='font-size:1.5em;cursor:pointer;' onclick='enviarEmotionEnviado("👏")'>👏</span>
+            <span style='font-size:1.5em;cursor:pointer;' onclick='enviarEmotionEnviado("🤔")'>🤔</span>
+            <span style='font-size:1.5em;cursor:pointer;' onclick='enviarEmotionEnviado("💡")'>💡</span>
+            <span style='font-size:1.5em;cursor:pointer;' onclick='enviarEmotionEnviado("🔥")'>🔥</span>
+            <span id='emotion-enviado' style='margin-left:10px;'></span>
+            <br><br>
+            <button onclick="voltarParaLogin()" style="background:#444;">Sair</button>
+        </div>
     </div>
 
     <script>
@@ -341,11 +359,13 @@
         return {};
     }
 
+    let respostaEnviadaId = null;
+
     async function enviarAlgoritmo() {
         const algoritmo = document.getElementById('algoritmo').value.trim();
         if (!algoritmo) { alert('Cole ou escreva seu algoritmo!'); return; }
         // Salva algoritmo na coleção 'respostas'
-        await db.collection('respostas').add({
+        const docRef = await db.collection('respostas').add({
             para: enunciadoSorteado.nome,
             de: meuNome,
             algoritmo,
@@ -353,10 +373,30 @@
             comentario: '',
             emotion: ''
         });
-        mostrarTela('tela-final');
+        respostaEnviadaId = docRef.id;
+        mostrarTela('tela-algoritmo-enviado');
+        exibirAlgoritmoEnviado(algoritmo, enunciadoSorteado.enunciado, enunciadoSorteado.nome);
         clearInterval(timerInterval);
-        // Limpa dados locais para nova rodada
-        setTimeout(() => { location.reload(); }, 8000);
+    }
+
+    function exibirAlgoritmoEnviado(algoritmo, enunciado, autor) {
+        document.getElementById('algoritmo-enviado-info').innerHTML = `
+            <b>Enunciado recebido de <span style='color:#00c3ff'>${autor}</span>:</b><br>
+            <span style='color:#00c3ff'>${enunciado}</span><br><br>
+            <b>Seu algoritmo enviado:</b><br>
+            <textarea style='width:100%;background:#181a1b;color:#fff;border:1px solid #444;border-radius:5px;' rows='6' readonly>${algoritmo}</textarea><br><br>
+        `;
+    }
+
+    async function salvarComentarioEnviado() {
+        const val = document.getElementById('comentario-enviado').value;
+        if (!respostaEnviadaId) return;
+        await db.collection('respostas').doc(respostaEnviadaId).update({ comentario: val });
+    }
+    async function enviarEmotionEnviado(emoji) {
+        if (!respostaEnviadaId) return;
+        await db.collection('respostas').doc(respostaEnviadaId).update({ emotion: emoji });
+        document.getElementById('emotion-enviado').textContent = emoji;
     }
 
     // Funções de administração
