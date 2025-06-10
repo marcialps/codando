@@ -126,6 +126,7 @@
         <div id="tela-final" class="hidden">
             <h2>Obrigado!</h2>
             <p class="success">Seu algoritmo foi enviado para o autor do enunciado.</p>
+            <button onclick="voltarParaLogin()" style="background:#444;">Voltar ao início</button>
         </div>
 
         <!-- Tela 6: Administração (apenas para 'cko') -->
@@ -395,7 +396,11 @@
         clearInterval(timerInterval);
         mostrarTela('tela-final');
         ativarFeedbackAoVivo();
-        // Não ativa o listener para o autor do enunciado imediatamente
+        // Se o usuário for autor de algum enunciado, ativa o listener de respostas ao vivo
+        const meusEnuns = await db.collection('enunciados').where('nome', '==', meuNome).get();
+        if (!meusEnuns.empty) {
+            ativarRespostasAoVivo();
+        }
     }
 
     function exibirAlgoritmoEnviado(algoritmo, enunciado, autor) {
