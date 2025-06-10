@@ -290,6 +290,8 @@
             if (alunosDaRodada.every(nome => nomesComEnunciado.has(nome))) {
                 clearInterval(monitorInterval);
                 if (!enviouEnunciado) finalizarEnunciado();
+                // Finaliza a rodada de algoritmos após um pequeno delay para garantir que todos salvaram
+                setTimeout(finalizarRodadaAlgoritmos, 2000);
             }
         }, 1500);
     }
@@ -386,25 +388,14 @@
             emotion: '',
             feedbackEnviado: false,
             feedbackComentario: '',
-            feedbackEmotion: ''
+            feedbackEmotion: '',
+            rodadaFinalizada: false
         });
         respostaEnviadaId = docRef.id;
         clearInterval(timerInterval);
         mostrarTela('tela-final');
         ativarFeedbackAoVivo();
-        // Se o autor do enunciado estiver logado, ativa/reativa o listener de respostas ao vivo
-        if (meuNome !== enunciadoSorteado.nome) {
-            window.setTimeout(() => {
-                db.collection('enunciados').where('nome', '==', enunciadoSorteado.nome).get().then(snap => {
-                    if (!snap.empty) {
-                        const nomeOriginal = meuNome;
-                        meuNome = enunciadoSorteado.nome;
-                        ativarRespostasAoVivo();
-                        meuNome = nomeOriginal;
-                    }
-                });
-            }, 1000);
-        }
+        // Não ativa o listener para o autor do enunciado imediatamente
     }
 
     function exibirAlgoritmoEnviado(algoritmo, enunciado, autor) {
@@ -479,6 +470,7 @@
         if (!meuNome) return;
         unsubscribeRespostas = db.collection('respostas')
             .where('para', '==', meuNome)
+            .where('rodadaFinalizada', '==', true)
             .onSnapshot(snap => {
                 if (snap.empty) return;
                 mostrarTela('tela-respostas');
@@ -550,6 +542,16 @@
                     }
                 });
             });
+    }
+
+    // Ao final da rodada, marcar todas as respostas como rodadaFinalizada: true
+    // Chame isso ao final do tempo ou quando todos enviarem
+    async function finalizarRodadaAlgoritmos() {
+        // Busca todas as respostas da rodada (pode filtrar por enunciados da rodada se quiser)
+        const snap = await db.collection('respostas').where('rodadaFinalizada', '==', false).get();
+        const batch = db.batch();
+        snap.forEach(doc => batch.update(doc.ref, { rodadaFinalizada: true }));
+        await batch.commit();
     }
     </script>
 </body>
