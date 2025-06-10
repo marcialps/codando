@@ -154,6 +154,13 @@
             </form>
             <button onclick="voltarParaLogin()" style="margin-top:20px;background:#444;">Sair da Administração</button>
         </div>
+
+        <!-- Tela 7: Respostas Recebidas (para o autor do enunciado) -->
+        <div id="tela-respostas" class="hidden">
+            <h2>Respostas Recebidas</h2>
+            <div id="respostas-lista"></div>
+            <button onclick="voltarParaLogin()" style="margin-top:20px;background:#444;">Sair</button>
+        </div>
     </div>
 
     <script>
@@ -279,7 +286,13 @@
         }
     }
 
+    // --- SORTEIO SEM REPETIÇÃO ---
+    let sorteioRealizado = false;
+    let sorteioMap = {};
+
     async function sortearEnunciado() {
+        if (sorteioRealizado) return;
+        sorteioRealizado = true;
         // Busca todos os enunciados
         const snap = await db.collection('enunciados').get();
         const enunciados = [];
@@ -287,18 +300,45 @@
             const data = doc.data();
             enunciados.push({ id: doc.id, ...data });
         });
-        // Remove o próprio enunciado
-        const outros = enunciados.filter(e => e.nome !== meuNome);
-        if (outros.length === 0) {
-            alert('Aguarde outros alunos enviarem enunciados.');
-            location.reload();
-            return;
-        }
-        // Sorteia um enunciado de outro aluno
-        enunciadoSorteado = outros[Math.floor(Math.random() * outros.length)];
+        // Participantes da rodada
+        const participantes = enunciados.map(e => e.nome);
+        // Gera sorteio sem repetições e sem autoatribuição
+        sorteioMap = gerarSorteioSemRepeticao(participantes);
+        // Descobre qual enunciado o participante deve receber
+        const nomeSorteado = sorteioMap[meuNome];
+        const enunciadoSorteadoObj = enunciados.find(e => e.nome === nomeSorteado);
+        enunciadoSorteado = enunciadoSorteadoObj;
         mostrarTela('tela-receber');
         document.getElementById('enunciado-recebido').textContent = enunciadoSorteado.enunciado;
         iniciarTimer('timer-resolver', tempoResolver, enviarAlgoritmo);
+    }
+
+    // Função para sortear sem repetições e sem autoatribuição
+    function gerarSorteioSemRepeticao(nomes) {
+        let tentativas = 0;
+        while (tentativas < 1000) {
+            // Embaralha os nomes
+            const embaralhado = nomes.slice().sort(() => Math.random() - 0.5);
+            let valido = true;
+            for (let i = 0; i < nomes.length; i++) {
+                if (nomes[i] === embaralhado[i]) {
+                    valido = false;
+                    break;
+                }
+            }
+            if (valido) {
+                // Monta o mapa: participante -> nome sorteado
+                const mapa = {};
+                for (let i = 0; i < nomes.length; i++) {
+                    mapa[nomes[i]] = embaralhado[i];
+                }
+                return mapa;
+            }
+            tentativas++;
+        }
+        alert('Não foi possível sortear sem repetições. Tente novamente.');
+        location.reload();
+        return {};
     }
 
     async function enviarAlgoritmo() {
@@ -309,7 +349,9 @@
             para: enunciadoSorteado.nome,
             de: meuNome,
             algoritmo,
-            enunciado: enunciadoSorteado.enunciado
+            enunciado: enunciadoSorteado.enunciado,
+            comentario: '',
+            emotion: ''
         });
         mostrarTela('tela-final');
         clearInterval(timerInterval);
@@ -362,6 +404,65 @@
         if (tempos.tempoSorteio) tempoSorteio = tempos.tempoSorteio;
         if (tempos.tempoResolver) tempoResolver = tempos.tempoResolver;
     })();
+
+    // Se o usuário for autor de algum enunciado, pode ver as respostas recebidas
+    async function verificarRespostasRecebidas() {
+        if (!meuNome) return;
+        // Busca respostas para o usuário
+        const snap = await db.collection('respostas').where('para', '==', meuNome).get();
+        if (snap.empty) return;
+        mostrarTela('tela-respostas');
+        const lista = document.getElementById('respostas-lista');
+        lista.innerHTML = '';
+        snap.forEach(doc => {
+            const data = doc.data();
+            const div = document.createElement('div');
+            div.style = 'background:#23272b;border:1px solid #333;border-radius:8px;padding:12px;margin-bottom:18px;';
+            div.innerHTML = `
+                <b>Enunciado:</b><br><span style='color:#00c3ff'>${data.enunciado}</span><br><br>
+                <b>Algoritmo enviado por <span style='color:#00e676'>${data.de}</span>:</b><br>
+                <textarea style='width:100%;background:#181a1b;color:#fff;border:1px solid #444;border-radius:5px;' rows='6' readonly>${data.algoritmo}</textarea><br>
+                <button onclick='copiarAlgoritmo(this)'>Copiar Algoritmo</button>
+                <button onclick='testarAlgoritmo(this)'>Testar (manual)</button><br><br>
+                <label>Comentário:</label><br>
+                <input type='text' style='width:80%;background:#181a1b;color:#fff;border:1px solid #444;border-radius:5px;' value='${data.comentario || ''}' id='comentario-${doc.id}'>
+                <button onclick='salvarComentario("${doc.id}")'>Salvar</button><br><br>
+                <label>Enviar emotion:</label>
+                <span style='font-size:1.5em;cursor:pointer;' onclick='enviarEmotion("${doc.id}","👍")'>👍</span>
+                <span style='font-size:1.5em;cursor:pointer;' onclick='enviarEmotion("${doc.id}","👏")'>👏</span>
+                <span style='font-size:1.5em;cursor:pointer;' onclick='enviarEmotion("${doc.id}","🤔")'>🤔</span>
+                <span style='font-size:1.5em;cursor:pointer;' onclick='enviarEmotion("${doc.id}","💡")'>💡</span>
+                <span style='font-size:1.5em;cursor:pointer;' onclick='enviarEmotion("${doc.id}","🔥")'>🔥</span>
+                <span id='emotion-${doc.id}' style='margin-left:10px;'>${data.emotion || ''}</span>
+            `;
+            lista.appendChild(div);
+        });
+    }
+
+    function copiarAlgoritmo(btn) {
+        const textarea = btn.parentElement.querySelector('textarea');
+        textarea.select();
+        document.execCommand('copy');
+        btn.textContent = 'Copiado!';
+        setTimeout(() => { btn.textContent = 'Copiar Algoritmo'; }, 1200);
+    }
+    function testarAlgoritmo(btn) {
+        alert('Teste manual: cole o algoritmo em seu ambiente preferido.');
+    }
+    async function salvarComentario(id) {
+        const val = document.getElementById('comentario-' + id).value;
+        await db.collection('respostas').doc(id).update({ comentario: val });
+        alert('Comentário salvo!');
+    }
+    async function enviarEmotion(id, emoji) {
+        await db.collection('respostas').doc(id).update({ emotion: emoji });
+        document.getElementById('emotion-' + id).textContent = emoji;
+    }
+
+    // Ao entrar, verifica se há respostas recebidas
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(verificarRespostasRecebidas, 2000);
+    });
     </script>
 </body>
 </html>
