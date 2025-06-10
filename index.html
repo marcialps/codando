@@ -126,7 +126,13 @@
         <div id="tela-final" class="hidden">
             <h2>Obrigado!</h2>
             <p class="success">Seu algoritmo foi enviado para o autor do enunciado.</p>
-            <div id="algoritmo-enviado-final" style="margin-top:20px;"></div>
+
+            <!-- Detalhes do algoritmo que o usuário acabou de enviar -->
+            <div id="meu-algoritmo-enviado-final" style="margin-top:20px;"></div>
+
+            <!-- Detalhes do enunciado que o usuário criou e o algoritmo recebido para ele -->
+            <div id="algoritmo-recebido-para-meu-enunciado-final" style="margin-top:20px;"></div>
+
             <button onclick="voltarParaLogin()" style="background:#444;">Voltar ao início</button>
         </div>
 
@@ -212,6 +218,7 @@
     let tempoResolver = 60; // segundos para resolver
     let timerInterval = null;
     let unsubscribeRespostas;
+    let unsubscribeRecebidoParaMeuEnunciado = null; // Para gerenciar o listener
 
     // Atualiza exibição dos minutos ao alterar os inputs
     function atualizarMinutos() {
@@ -375,51 +382,61 @@
 
     let respostaEnviadaId = null;
 
-    async function exibirEnunciadoEAlgoritmoRecebido() {
-        // Busca o enunciado criado pelo usuário
-        const enunSnap = await db.collection('enunciados').where('nome', '==', meuNome).get();
-        let meuEnunciado = '';
-        if (!enunSnap.empty) {
-            meuEnunciado = enunSnap.docs[0].data().enunciado;
-        }
-        // Busca todas as respostas recebidas para esse enunciado
-        const respSnap = await db.collection('respostas')
-            .where('para', '==', meuNome)
-            .where('enunciado', '==', meuEnunciado)
-            .where('rodadaFinalizada', '==', true)
-            .get();
-        let html = `<b>Seu enunciado enviado:</b><br>
-            <span style='color:#00c3ff'>${meuEnunciado || 'Nenhum enunciado encontrado.'}</span><br><br>`;
-        if (!respSnap.empty) {
-            respSnap.forEach(doc => {
-                const data = doc.data();
-                html += `<b>Algoritmo recebido de <span style='color:#00e676'>${data.de || '-'}</span>:</b><br>
-                    <textarea style='width:100%;background:#181a1b;color:#fff;border:1px solid #444;border-radius:5px;' rows='6' readonly>${data.algoritmo || ''}</textarea><br><br>`;
-            });
-        } else {
-            // Tentar descobrir quem deveria ter enviado o algoritmo
-            let remetente = '-';
-            // Busca todos os participantes da rodada
-            const enunsAll = await db.collection('enunciados').get();
-            const participantes = enunsAll.docs.map(doc => doc.data().nome);
-            // Busca o sorteio da rodada (se possível)
-            // O algoritmo de sorteio faz um mapeamento circular, então quem recebeu o enunciado do usuário é quem deveria enviar a resposta
-            // Exemplo: se participantes = [A, B, C], sorteio pode ser {A:B, B:C, C:A}
-            // Então, quem recebeu o enunciado do usuário é o participante anterior no array
-            const idx = participantes.indexOf(meuNome);
-            if (idx !== -1 && participantes.length > 1) {
-                // O participante anterior no array é quem recebeu o enunciado do usuário
-                remetente = participantes[(idx - 1 + participantes.length) % participantes.length];
-            }
-            html += `<b>Algoritmo recebido de <span style='color:#00e676'>${remetente}</span>:</b><br>
-                <textarea style='width:100%;background:#181a1b;color:#fff;border:1px solid #444;border-radius:5px;' rows='6' readonly>Nenhum algoritmo recebido ainda.</textarea>`;
-        }
-        document.getElementById('algoritmo-enviado-final').innerHTML = html;
-    }
-
     async function mostrarTelaFinalComResultados() {
         mostrarTela('tela-final');
-        setTimeout(exibirEnunciadoEAlgoritmoRecebido, 2000);
+        console.log('Mostrar Tela Final com Resultados para', meuNome);
+
+        // Limpa o listener anterior se existir
+        if (unsubscribeRecebidoParaMeuEnunciado) unsubscribeRecebidoParaMeuEnunciado();
+
+        // Buscar o enunciado criado pelo usuário para o listener
+        const enunSnap = await db.collection('enunciados').where('nome', '==', meuNome).get();
+        let meuEnunciadoTexto = '';
+        if (!enunSnap.empty) {
+            meuEnunciadoTexto = enunSnap.docs[0].data().enunciado;
+            console.log('Meu enunciado encontrado para', meuNome + ':', meuEnunciadoTexto);
+        } else {
+            console.warn('Nenhum enunciado encontrado para', meuNome, '. Verifique se o enunciado foi salvo.');
+        }
+
+        // Configura o listener para o algoritmo recebido para o MEU enunciado
+        unsubscribeRecebidoParaMeuEnunciado = db.collection('respostas')
+            .where('para', '==', meuNome)
+            .where('rodadaFinalizada', '==', true) // Só exibe quando a rodada for finalizada
+            .onSnapshot(async snap => {
+                console.log('Snapshot recebido para meu enunciado:', meuNome, 'Qtd:', snap.size, 'Vazio:', snap.empty);
+                let html = `<b>Seu enunciado enviado:</b><br>
+                    <span style='color:#00c3ff'>${meuEnunciadoTexto || 'Nenhum enunciado encontrado.'}</span><br><br>`;
+
+                if (!snap.empty) {
+                    snap.forEach(doc => {
+                        const data = doc.data();
+                        console.log('Processando resposta:', data.enunciado, 'Enviado por:', data.de, 'Rodada finalizada:', data.rodadaFinalizada);
+                        // Verifica se o algoritmo recebido corresponde ao enunciado do usuário
+                        // (Pode haver múltiplos enunciados do mesmo usuário, então filtramos pelo texto do enunciado)
+                        if (data.enunciado === meuEnunciadoTexto) {
+                            console.log('Enunciado da resposta corresponde ao meu enunciado. Exibindo algoritmo.');
+                            html += `<b>Algoritmo recebido de <span style='color:#00e676'>${data.de || '-'}</span>:</b><br>
+                                <textarea style='width:100%;background:#181a1b;color:#fff;border:1px solid #444;border-radius:5px;' rows='6' readonly>${data.algoritmo || ''}</textarea><br><br>`;
+                        } else {
+                            console.warn('Enunciado da resposta NÃO corresponde ao meu. Esperado:', meuEnunciadoTexto, 'Recebido:', data.enunciado);
+                        }
+                    });
+                } else {
+                    console.log('Nenhum snapshot de resposta não vazio. Exibindo mensagem padrão.');
+                    // Tentar descobrir quem deveria ter enviado o algoritmo
+                    let remetente = '-';
+                    const enunsAll = await db.collection('enunciados').get();
+                    const participantes = enunsAll.docs.map(doc => doc.data().nome);
+                    const idx = participantes.indexOf(meuNome);
+                    if (idx !== -1 && participantes.length > 1) {
+                        remetente = participantes[(idx - 1 + participantes.length) % participantes.length];
+                    }
+                    html += `<b>Algoritmo recebido de <span style='color:#00e676'>${remetente}</span>:</b><br>
+                        <textarea style='width:100%;background:#181a1b;color:#fff;border:1px solid #444;border-radius:5px;' rows='6' readonly>Nenhum algoritmo recebido ainda.</textarea>`;
+                }
+                document.getElementById('algoritmo-recebido-para-meu-enunciado-final').innerHTML = html;
+            });
     }
 
     async function enviarAlgoritmo() {
@@ -440,18 +457,20 @@
         });
         respostaEnviadaId = docRef.id;
         clearInterval(timerInterval);
-        await mostrarTelaFinalComResultados();
-        ativarFeedbackAoVivo();
-        ativarRespostasAoVivo();
-    }
+        mostrarTela('tela-final');
 
-    function exibirAlgoritmoEnviado(algoritmo, enunciado, autor) {
-        document.getElementById('algoritmo-enviado-info').innerHTML = `
-            <b>Enunciado recebido de <span style='color:#00c3ff'>${autor}</span>:</b><br>
-            <span style='color:#00c3ff'>${enunciado}</span><br><br>
+        // Exibe o algoritmo que o usuário acabou de enviar (na div correta)
+        document.getElementById('meu-algoritmo-enviado-final').innerHTML = `
+            <b>Você resolveu o enunciado:</b><br>
+            <span style='color:#00c3ff'>${enunciadoSorteado.enunciado}</span><br><br>
             <b>Seu algoritmo enviado:</b><br>
-            <textarea style='width:100%;background:#181a1b;color:#fff;border:1px solid #444;border-radius:5px;' rows='6' readonly>${algoritmo}</textarea><br><br>
+            <textarea style='width:100%;background:#181a1b;color:#fff;border:1px solid #444;border-radius:5px;' rows='6' readonly>${algoritmo}</textarea>
         `;
+
+        ativarFeedbackAoVivo(); // Ativa listener para feedback (se for receber feedback)
+        // Não precisamos chamar mostrarTelaFinalComResultados() novamente aqui
+        // o listener já foi ativado e será atualizado
+        // ativarRespostasAoVivo(); // Este é para a tela de admin/autor do enunciado
     }
 
     async function salvarComentarioEnviado() {
