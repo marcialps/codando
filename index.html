@@ -375,6 +375,39 @@
 
     let respostaEnviadaId = null;
 
+    async function exibirEnunciadoEAlgoritmoRecebido() {
+        // Busca o enunciado criado pelo usuário
+        const enunSnap = await db.collection('enunciados').where('nome', '==', meuNome).get();
+        let meuEnunciado = '';
+        if (!enunSnap.empty) {
+            meuEnunciado = enunSnap.docs[0].data().enunciado;
+        }
+        // Busca a resposta recebida para esse enunciado
+        const respSnap = await db.collection('respostas')
+            .where('para', '==', meuNome)
+            .where('rodadaFinalizada', '==', true)
+            .get();
+        let algoritmoRecebido = '';
+        let deQuem = '';
+        if (!respSnap.empty) {
+            const data = respSnap.docs[0].data();
+            algoritmoRecebido = data.algoritmo;
+            deQuem = data.de;
+        }
+        // Exibe ambos na tela-final
+        document.getElementById('algoritmo-enviado-final').innerHTML = `
+            <b>Seu enunciado enviado:</b><br>
+            <span style='color:#00c3ff'>${meuEnunciado || 'Nenhum enunciado encontrado.'}</span><br><br>
+            <b>Algoritmo recebido de <span style='color:#00e676'>${deQuem || '-'}</span>:</b><br>
+            <textarea style='width:100%;background:#181a1b;color:#fff;border:1px solid #444;border-radius:5px;' rows='6' readonly>${algoritmoRecebido || 'Nenhum algoritmo recebido ainda.'}</textarea>
+        `;
+    }
+
+    async function mostrarTelaFinalComResultados() {
+        mostrarTela('tela-final');
+        setTimeout(exibirEnunciadoEAlgoritmoRecebido, 2000);
+    }
+
     async function enviarAlgoritmo() {
         const algoritmo = document.getElementById('algoritmo').value.trim();
         if (!algoritmo) { alert('Cole ou escreva seu algoritmo!'); return; }
@@ -393,16 +426,8 @@
         });
         respostaEnviadaId = docRef.id;
         clearInterval(timerInterval);
-        mostrarTela('tela-final');
-        // Exibe o algoritmo enviado na tela-final
-        document.getElementById('algoritmo-enviado-final').innerHTML = `
-            <b>Enunciado sorteado:</b><br>
-            <span style='color:#00c3ff'>${enunciadoSorteado.enunciado}</span><br><br>
-            <b>Seu algoritmo enviado:</b><br>
-            <textarea style='width:100%;background:#181a1b;color:#fff;border:1px solid #444;border-radius:5px;' rows='6' readonly>${algoritmo}</textarea>
-        `;
+        await mostrarTelaFinalComResultados();
         ativarFeedbackAoVivo();
-        // Se o usuário for autor de algum enunciado, ativa o listener de respostas ao vivo
         ativarRespostasAoVivo();
     }
 
