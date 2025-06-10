@@ -179,6 +179,13 @@
             <br><br>
             <button onclick="voltarParaLogin()" style="background:#444;">Sair</button>
         </div>
+
+        <!-- Tela 9: Feedback Recebido pelo Autor do Algoritmo -->
+        <div id="tela-feedback-recebido" class="hidden">
+            <h2>Feedback do Autor do Enunciado</h2>
+            <div id="feedback-recebido-info"></div>
+            <button onclick="voltarParaLogin()" style="background:#444;">Sair</button>
+        </div>
     </div>
 
     <script>
@@ -371,12 +378,16 @@
             algoritmo,
             enunciado: enunciadoSorteado.enunciado,
             comentario: '',
-            emotion: ''
+            emotion: '',
+            feedbackEnviado: false,
+            feedbackComentario: '',
+            feedbackEmotion: ''
         });
         respostaEnviadaId = docRef.id;
-        mostrarTela('tela-algoritmo-enviado');
-        exibirAlgoritmoEnviado(algoritmo, enunciadoSorteado.enunciado, enunciadoSorteado.nome);
         clearInterval(timerInterval);
+        mostrarTela('tela-final');
+        setTimeout(() => { voltarParaLogin(); }, 2000);
+        ativarFeedbackAoVivo();
     }
 
     function exibirAlgoritmoEnviado(algoritmo, enunciado, autor) {
@@ -445,8 +456,7 @@
         if (tempos.tempoResolver) tempoResolver = tempos.tempoResolver;
     })();
 
-    // Listener em tempo real para respostas recebidas
-    let unsubscribeRespostas = null;
+    // Exibe para o criador do enunciado o algoritmo recebido e permite feedback
     function ativarRespostasAoVivo() {
         if (unsubscribeRespostas) unsubscribeRespostas();
         if (!meuNome) return;
@@ -465,44 +475,65 @@
                         <b>Enunciado:</b><br><span style='color:#00c3ff'>${data.enunciado}</span><br><br>
                         <b>Algoritmo enviado por <span style='color:#00e676'>${data.de}</span>:</b><br>
                         <textarea style='width:100%;background:#181a1b;color:#fff;border:1px solid #444;border-radius:5px;' rows='6' readonly>${data.algoritmo}</textarea><br><br>
-                        <label>Comentário:</label><br>
-                        <input type='text' style='width:80%;background:#181a1b;color:#fff;border:1px solid #444;border-radius:5px;' value='${data.comentario || ''}' id='comentario-${doc.id}'>
-                        <button onclick='salvarComentario("${doc.id}")'>Salvar</button><br><br>
+                        <label>Comentário para o autor do algoritmo:</label><br>
+                        <input type='text' style='width:80%;background:#181a1b;color:#fff;border:1px solid #444;border-radius:5px;' value='${data.feedbackComentario || ''}' id='feedback-comentario-${doc.id}'>
+                        <br><br>
                         <label>Enviar emotion:</label>
-                        <span style='font-size:1.5em;cursor:pointer;' onclick='enviarEmotion("${doc.id}","👍")'>👍</span>
-                        <span style='font-size:1.5em;cursor:pointer;' onclick='enviarEmotion("${doc.id}","👏")'>👏</span>
-                        <span style='font-size:1.5em;cursor:pointer;' onclick='enviarEmotion("${doc.id}","🤔")'>🤔</span>
-                        <span style='font-size:1.5em;cursor:pointer;' onclick='enviarEmotion("${doc.id}","💡")'>💡</span>
-                        <span style='font-size:1.5em;cursor:pointer;' onclick='enviarEmotion("${doc.id}","🔥")'>🔥</span>
-                        <span id='emotion-${doc.id}' style='margin-left:10px;'>${data.emotion || ''}</span>
+                        <span style='font-size:1.5em;cursor:pointer;' onclick='selecionarFeedbackEmotion("${doc.id}","👍")'>👍</span>
+                        <span style='font-size:1.5em;cursor:pointer;' onclick='selecionarFeedbackEmotion("${doc.id}","👏")'>👏</span>
+                        <span style='font-size:1.5em;cursor:pointer;' onclick='selecionarFeedbackEmotion("${doc.id}","🤔")'>🤔</span>
+                        <span style='font-size:1.5em;cursor:pointer;' onclick='selecionarFeedbackEmotion("${doc.id}","💡")'>💡</span>
+                        <span style='font-size:1.5em;cursor:pointer;' onclick='selecionarFeedbackEmotion("${doc.id}","🔥")'>🔥</span>
+                        <span id='feedback-emotion-${doc.id}' style='margin-left:10px;'>${data.feedbackEmotion || ''}</span>
+                        <br><br>
+                        <button onclick='enviarFeedbackParaAutor("${doc.id}")'>Enviar Feedback</button>
                     `;
                     lista.appendChild(div);
                 });
             });
     }
 
-    async function salvarComentario(id) {
-        const val = document.getElementById('comentario-' + id).value;
-        await db.collection('respostas').doc(id).update({ comentario: val });
-    }
-    async function enviarEmotion(id, emoji) {
-        await db.collection('respostas').doc(id).update({ emotion: emoji });
-        document.getElementById('emotion-' + id).textContent = emoji;
+    // Função para selecionar emotion de feedback
+    function selecionarFeedbackEmotion(id, emoji) {
+        document.getElementById('feedback-emotion-' + id).textContent = emoji;
     }
 
-    // Ativa respostas ao vivo ao entrar no sistema
-    function checarAutorRespostasAoVivo() {
-        if (!meuNome) return;
-        // Verifica se o usuário é autor de algum enunciado
-        db.collection('enunciados').where('nome', '==', meuNome).get().then(snap => {
-            if (!snap.empty) ativarRespostasAoVivo();
+    // Função para enviar feedback para o autor do algoritmo
+    async function enviarFeedbackParaAutor(id) {
+        const comentario = document.getElementById('feedback-comentario-' + id).value;
+        const emotion = document.getElementById('feedback-emotion-' + id).textContent;
+        await db.collection('respostas').doc(id).update({
+            feedbackComentario: comentario,
+            feedbackEmotion: emotion,
+            feedbackEnviado: true
         });
+        alert('Feedback enviado!');
     }
 
-    // Chama ao entrar
-    document.addEventListener('DOMContentLoaded', () => {
-        setTimeout(checarAutorRespostasAoVivo, 2000);
-    });
+    // Listener para mostrar feedback recebido ao autor do algoritmo
+    function ativarFeedbackAoVivo() {
+        if (!meuNome) return;
+        db.collection('respostas')
+            .where('de', '==', meuNome)
+            .orderBy('feedbackEnviado', 'desc')
+            .limit(1)
+            .onSnapshot(snap => {
+                snap.forEach(doc => {
+                    const data = doc.data();
+                    if (data.feedbackEnviado) {
+                        mostrarTela('tela-feedback-recebido');
+                        document.getElementById('feedback-recebido-info').innerHTML = `
+                            <b>Enunciado:</b><br><span style='color:#00c3ff'>${data.enunciado}</span><br><br>
+                            <b>Seu algoritmo enviado:</b><br>
+                            <textarea style='width:100%;background:#181a1b;color:#fff;border:1px solid #444;border-radius:5px;' rows='6' readonly>${data.algoritmo}</textarea><br><br>
+                            <b>Comentário do autor:</b><br>
+                            <span style='color:#00e676'>${data.feedbackComentario || ''}</span><br><br>
+                            <b>Emotion:</b> <span style='font-size:1.5em;'>${data.feedbackEmotion || ''}</span>
+                        `;
+                    }
+                });
+            });
+    }
     </script>
 </body>
 </html>
