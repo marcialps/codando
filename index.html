@@ -397,7 +397,21 @@
                     <textarea style='width:100%;background:#181a1b;color:#fff;border:1px solid #444;border-radius:5px;' rows='6' readonly>${data.algoritmo || ''}</textarea><br><br>`;
             });
         } else {
-            html += `<b>Algoritmo recebido de -:</b><br>
+            // Tentar descobrir quem deveria ter enviado o algoritmo
+            let remetente = '-';
+            // Busca todos os participantes da rodada
+            const enunsAll = await db.collection('enunciados').get();
+            const participantes = enunsAll.docs.map(doc => doc.data().nome);
+            // Busca o sorteio da rodada (se possível)
+            // O algoritmo de sorteio faz um mapeamento circular, então quem recebeu o enunciado do usuário é quem deveria enviar a resposta
+            // Exemplo: se participantes = [A, B, C], sorteio pode ser {A:B, B:C, C:A}
+            // Então, quem recebeu o enunciado do usuário é o participante anterior no array
+            const idx = participantes.indexOf(meuNome);
+            if (idx !== -1 && participantes.length > 1) {
+                // O participante anterior no array é quem recebeu o enunciado do usuário
+                remetente = participantes[(idx - 1 + participantes.length) % participantes.length];
+            }
+            html += `<b>Algoritmo recebido de <span style='color:#00e676'>${remetente}</span>:</b><br>
                 <textarea style='width:100%;background:#181a1b;color:#fff;border:1px solid #444;border-radius:5px;' rows='6' readonly>Nenhum algoritmo recebido ainda.</textarea>`;
         }
         document.getElementById('algoritmo-enviado-final').innerHTML = html;
